@@ -1,0 +1,6 @@
+parameters:
+    crop.controller.class: BackBee\Bundle\CropBundle\Controller\CropController
+services:
+    crop.controller:
+        class: %crop.controller.class%
+        arguments: [@bbapp, @routing]
