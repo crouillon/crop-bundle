@@ -1,0 +1,8 @@
+bundle.crop.docrop:
+    pattern: /rest/{version}/crop
+    defaults:
+        _action: cropAction
+        _controller: crop.controller
+    requirements:
+        version: \d
+        _method: POST
