@@ -1,6 +1,6 @@
 {
     "name": "backbee/crop-bundle",
-    "description": "CropBundle provides Backbee image cropping functionality",
+    "description": "Crop bundle provides Backbee image cropping functionality",
     "keywords": ["CMS", "Core", "Content Management", "No backend CMS", "Crop", "Bundle"],
     "license": "GPL-3.0+",
     "authors": [
@@ -15,7 +15,7 @@
     ],
     "require": {
         "php": ">=5.4.0",
-        "backbee/backbee": "~1.1.0",
+        "backbee/backbee-php": "~1.2.0",
         "backbee/utils": "~2.0",
         "symfony/http-foundation": "~2.7.0",
         "symfony/http-kernel": "~2.7.0"
