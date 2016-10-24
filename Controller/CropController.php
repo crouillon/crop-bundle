@@ -77,6 +77,8 @@ class CropController extends AbstractRestController
      */
     protected $classContentRepository;
 
+    protected $bbtoken;
+
     /**
      * Crop controller's constructor
      *
@@ -89,6 +91,7 @@ class CropController extends AbstractRestController
         $this->request = $this->getRequest();
         $this->revisionRepository = $this->_em->getRepository('BackBee\ClassContent\Revision');
         $this->classContentRepository = $this->_em->getRepository('BackBee\ClassContent\AbstractClassContent');
+        $this->bbtoken = $application->getBBUserToken();
     }
 
     /**
@@ -111,14 +114,24 @@ class CropController extends AbstractRestController
         switch ($this->request->get('cropAction')) {
             case 'replace':
             default:
-                $response = $this->saveAndReplace($imageElement);
+                $response = $this->saveAndReplace($imageElement); // Element/Image
                 break;
             case 'new':
-                $response = $this->saveAndNew($imageElement);
+                $response = $this->saveAndNew($imageElement); // Media/Image
                 break;
         }
-
-        return $this->createJsonResponse($response, $response ? Response::HTTP_OK : Response::HTTP_INTERNAL_SERVER_ERROR);
+        return $this->createJsonResponse(null, 201, [
+            'BB-RESOURCE-UID' => $response->getUid(),
+            'Location'        => $this->getApplication()->getRouting()->getUrlByRouteName(
+                'bundle.crop.docrop',
+                [
+                    'version' => $this->request->attributes->get('version'),
+                    'uid'     => $response->getUid(),
+                ],
+                '',
+                false
+            ),
+        ]);
     }
 
     /**
@@ -173,8 +186,7 @@ class CropController extends AbstractRestController
         $response = $this->doActualCrop($clonedImage, false, $imageElement);
         // create the new media element
         $this->createNewMedia($newMediaImage, $title);
-
-        return $response;
+        return $newMediaImage;
     }
 
     /**
@@ -198,7 +210,6 @@ class CropController extends AbstractRestController
             $this->createDirAndCopyFile($imageData['oldImagePath'], $imageData['newImagePath']);
             // do the actual cropping actions persist the cloned elements
             if (CropMedia::cropImage($imageData['newImagePath'], $this->request->get('cropX'), $this->request->get('cropY'), $this->request->get('cropW'), $this->request->get('cropH'))) {
-                $response = true;
                 $this->updateObject($image, $imageData['newImagePathFromContent'], $imageData['newImagePath']);
                 if ($generatePathFromClone) {
                     $this->updateObject($revision, $imageData['newImagePathFromContent'], $imageData['newImagePath']);
@@ -213,7 +224,7 @@ class CropController extends AbstractRestController
             throw $e;
         }
 
-        return ($response ? $response : false);
+        return $image;
     }
 
     /**
@@ -317,8 +328,6 @@ class CropController extends AbstractRestController
      */
     protected function getDraftOrRevision(Image $image)
     {
-        $revisions = $image->getRevisions();
-
-        return (null !== $image->getDraft()) ? $image->getDraft() : $revisions[0];
+        return $this->_em->getRepository('BackBee\ClassContent\Revision')->getDraft($image, $this->bbtoken, true);
     }
 }
