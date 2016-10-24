@@ -116,22 +116,24 @@ class CropController extends AbstractRestController
         if (null === $mediaImage) {
             throw new BadRequestHttpException('Invalid media image');
         }
+
         if ("new" === $cropAction) {
             $newMediaImage = $this->saveAndNew($imageElement, $mediaImage);
             $newMediaUid = $newMediaImage->getUid();
             $response = $this->createJsonResponse(null, 201, [
                 'BB-RESOURCE-UID' =>$newMediaUid,
                 'Location'  => $this->getApplication()->getRouting()->getUrlByRouteName(
-                'bb.rest.media.get',
-                [
-                    'version' => $this->request->attributes->get('version'),
-                    'uid'     => $newMediaUid,
-                ],
-                '',
-                false
-            ),
-        ]);
+                    'bb.rest.media.get',
+                    [
+                        'version' => $this->request->attributes->get('version'),
+                        'uid'     => $newMediaUid,
+                    ],
+                    '',
+                    false
+                ),
+            ]);
         }
+
         else {
             $this->saveAndReplace($imageElement);
             $mediaUid = $mediaImage->getUid();
