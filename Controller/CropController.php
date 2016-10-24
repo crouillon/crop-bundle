@@ -118,14 +118,14 @@ class CropController extends AbstractRestController
         }
         if ("new" === $cropAction) {
             $newMediaImage = $this->saveAndNew($imageElement, $mediaImage);
-            $mediaUid = $newMediaImage->getUid();
+            $newMediaUid = $newMediaImage->getUid();
             $response = $this->createJsonResponse(null, 201, [
-                'BB-RESOURCE-UID' => $media->getId(),
+                'BB-RESOURCE-UID' =>$newMediaUid,
                 'Location'  => $this->getApplication()->getRouting()->getUrlByRouteName(
                 'bb.rest.media.get',
                 [
                     'version' => $request->attributes->get('version'),
-                    'uid'     => $mediaUid,
+                    'uid'     => $newMediaUid,
                 ],
                 '',
                 false
