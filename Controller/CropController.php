@@ -124,7 +124,7 @@ class CropController extends AbstractRestController
                 'Location'  => $this->getApplication()->getRouting()->getUrlByRouteName(
                 'bb.rest.media.get',
                 [
-                    'version' => $request->attributes->get('version'),
+                    'version' => $this->request->attributes->get('version'),
                     'uid'     => $newMediaUid,
                 ],
                 '',
