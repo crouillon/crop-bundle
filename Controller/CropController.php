@@ -53,7 +53,7 @@ class CropController extends AbstractRestController
 {
     /**
      * Request
-     * 
+     *
      * @var Request
      */
     protected $request;
@@ -77,6 +77,8 @@ class CropController extends AbstractRestController
      */
     protected $classContentRepository;
 
+    protected $bbtoken;
+
     /**
      * Crop controller's constructor
      *
@@ -89,36 +91,54 @@ class CropController extends AbstractRestController
         $this->request = $this->getRequest();
         $this->revisionRepository = $this->_em->getRepository('BackBee\ClassContent\Revision');
         $this->classContentRepository = $this->_em->getRepository('BackBee\ClassContent\AbstractClassContent');
+        $this->bbtoken = $application->getBBUserToken();
     }
 
     /**
      * Image crop action
-     * 
+     *
      * @Rest\Security("is_fully_authenticated() & has_role('ROLE_API_USER')")
      *
      * @return boolean $response
-     * 
+     *
      * @throws NotFoundHttpException Occurs if the provided element image is not found
      */
     public function cropAction()
     {
-        $imageElement = $this->_em->find(AbstractClassContent::getClassnameByContentType('Element/Image'), $this->request->get('originalUid'));
+        $imageElement = $this->_em->find('BackBee\ClassContent\Element\Image', $this->request->get('originalUid'));
+        $mediaImage = $this->_em->find('BackBee\ClassContent\Media\Image',  $this->request->get('parentUid'));
+        $cropAction = $this->request->get('cropAction', null);
 
         if (null === $imageElement) {
             throw new NotFoundHttpException('Invalid image element');
         }
 
-        switch ($this->request->get('cropAction')) {
-            case 'replace':
-            default:
-                $response = $this->saveAndReplace($imageElement);
-                break;
-            case 'new':
-                $response = $this->saveAndNew($imageElement);
-                break;
+        if (null === $mediaImage) {
+            throw new BadRequestHttpException('Invalid media image');
         }
 
-        return $this->createJsonResponse($response, $response ? Response::HTTP_OK : Response::HTTP_INTERNAL_SERVER_ERROR);
+        if ("new" === $cropAction) {
+            $newMediaImage = $this->saveAndNew($imageElement, $mediaImage);
+            $newMediaUid = $newMediaImage->getUid();
+            $response = $this->createJsonResponse(null, 201, [
+                'BB-RESOURCE-UID' =>$newMediaUid,
+                'Location'  => $this->getApplication()->getRouting()->getUrlByRouteName(
+                    'bb.rest.classcontent.get',
+                    [
+                        'version' => $this->request->attributes->get('version'),
+                        'uid'     => $newMediaUid,
+                    ],
+                    '',
+                    false
+                ),
+            ]);
+        } else {
+            $this->saveAndReplace($imageElement);
+            $mediaUid = $mediaImage->getUid();
+            $response = $this->createJsonResponse(null, 204);
+        }
+
+        return $response;
     }
 
     /**
@@ -130,9 +150,7 @@ class CropController extends AbstractRestController
      */
     protected function saveAndReplace($imageElement)
     {
-        $response = $this->doActualCrop($imageElement, true);
-
-        return $response;
+        return $this->doActualCrop($imageElement, true, null);
     }
 
     /**
@@ -142,39 +160,36 @@ class CropController extends AbstractRestController
      *
      * @return boolean $response
      *
-     * @throws \LogicException Occurs when no parent is found for the image element
      */
-    protected function saveAndNew($imageElement)
+    protected function saveAndNew($imageElement, $elementParent=null)
     {
-        // title of the new media
         $title = '';
-        // get the parent uid
-        $parentUid = $this->classContentRepository->getParentContentUidByUid($this->request->get('originalUid'));
-        if (0 !== count($parentUid)) {
-            $parent = $this->_em->find(AbstractClassContent::getClassnameByContentType('Media/Image'), $parentUid[0]);
-            // check if the parent is of type Media/Image
-            if (null !== $parent) {
+
+        try {
+
+            if (null !== $elementParent) {
                 // clone the parent
-                $newMediaImage = $parent->createClone();
+                $newMediaImage = $elementParent->createClone();
                 $newMediaImageData = $newMediaImage->getData();
                 // get cloned image data
                 $clonedImage = $newMediaImageData['image'];
                 $title = $newMediaImageData['title']->getData('value');
-            } else {
+            }
+            else {
                 $clonedImage = $imageElement->createClone();
                 // create a new media image element and set the cloned image to it
                 $mediaImageClass = AbstractClassContent::getClassnameByContentType('Media/Image');
                 $newMediaImage = new $mediaImageClass();
                 $newMediaImage->__set('image', $clonedImage);
             }
-        } else {
-            throw new \LogicException('Element does not have a parent.');
-        }
-        $response = $this->doActualCrop($clonedImage, false, $imageElement);
-        // create the new media element
-        $this->createNewMedia($newMediaImage, $title);
 
-        return $response;
+            $this->doActualCrop($clonedImage, false, $imageElement);
+            // create the new media element
+            $this->createNewMedia($newMediaImage, $title);
+            return $newMediaImage;
+        } catch (\Exception $e) {
+            throw $e;
+        }
     }
 
     /**
@@ -183,22 +198,22 @@ class CropController extends AbstractRestController
      * @param Image $image
      * @param boolean $generatePathFromClone
      * @param Image $originalImage
-     * 
+     *
      * @return boolean $response
      *
      * @throws \LogicException
      * @throws \InvalidArgumentException
      */
-    protected function doActualCrop(Image &$image, $generatePathFromClone = false, Image $originalImage = null)
+    protected function doActualCrop(Image $image, $generatePathFromClone = false, Image $originalImage = null)
     {
         $revision = $this->getDraftOrRevision(($originalImage ? $originalImage : $image));
+
         try {
-            $imageData = $this->getImageData($image, ($image->getData('path')) ? $image->getData('path') : $revision->getData('path'), $generatePathFromClone);
+            $imageData = $this->getImageData($image, $revision->getData('path') ? $revision->getData('path') : $image->getData('path'), $generatePathFromClone);
             // copy a new image which will be cropped
             $this->createDirAndCopyFile($imageData['oldImagePath'], $imageData['newImagePath']);
             // do the actual cropping actions persist the cloned elements
             if (CropMedia::cropImage($imageData['newImagePath'], $this->request->get('cropX'), $this->request->get('cropY'), $this->request->get('cropW'), $this->request->get('cropH'))) {
-                $response = true;
                 $this->updateObject($image, $imageData['newImagePathFromContent'], $imageData['newImagePath']);
                 if ($generatePathFromClone) {
                     $this->updateObject($revision, $imageData['newImagePathFromContent'], $imageData['newImagePath']);
@@ -213,7 +228,7 @@ class CropController extends AbstractRestController
             throw $e;
         }
 
-        return ($response ? $response : false);
+        return $image;
     }
 
     /**
@@ -317,8 +332,6 @@ class CropController extends AbstractRestController
      */
     protected function getDraftOrRevision(Image $image)
     {
-        $revisions = $image->getRevisions();
-
-        return (null !== $image->getDraft()) ? $image->getDraft() : $revisions[0];
+        return $this->_em->getRepository('BackBee\ClassContent\Revision')->getDraft($image, $this->bbtoken, true);
     }
 }
