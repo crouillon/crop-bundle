@@ -123,7 +123,7 @@ class CropController extends AbstractRestController
             $response = $this->createJsonResponse(null, 201, [
                 'BB-RESOURCE-UID' =>$newMediaUid,
                 'Location'  => $this->getApplication()->getRouting()->getUrlByRouteName(
-                    'bb.rest.media.get',
+                    'bb.rest.classcontent.get',
                     [
                         'version' => $this->request->attributes->get('version'),
                         'uid'     => $newMediaUid,
@@ -132,9 +132,7 @@ class CropController extends AbstractRestController
                     false
                 ),
             ]);
-        }
-
-        else {
+        } else {
             $this->saveAndReplace($imageElement);
             $mediaUid = $mediaImage->getUid();
             $response = $this->createJsonResponse(null, 204);
