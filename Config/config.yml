@@ -2,6 +2,6 @@ bundle:
     name: CropBundle
     description: CropBundle provides Backbee image cropping functionality
     author: Marian Hodis <marian.hodis@lp-digital.fr>
-    version: 1.0.0
+    version: 1.3.0
     enable: true
     config_per_site: false
